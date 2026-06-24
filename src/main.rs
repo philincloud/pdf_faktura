@@ -8,7 +8,7 @@ use std::{
 
 #[derive(Deserialize)]
 struct Invoice {
-    // logo_b64: Option<String>, // uncomment when you want logo support
+    // logo_b64: Option<String>,  // disabled for now to make it compile
     issue_date: String,
     invoice_number: String,
     seller: Contractor,
@@ -82,8 +82,11 @@ fn main() {
     let current_layer = doc.get_page(page1).get_layer(layer1);
 
     let font = doc
-        .add_builtin_font(BuiltinFont::Helvetica)
-        .expect("Failed to add font");
+        .add_external_font(
+            File::open("assets/Roboto-Regular.ttf")
+                .expect("Put Roboto-Regular.ttf in assets/ folder"),
+        )
+        .expect("Failed to load font");
 
     let write_text = |text: &str, size: f32, x: f32, y: f32| {
         current_layer.use_text(text, size, Mm(x), Mm(y), &font);
@@ -98,8 +101,8 @@ fn main() {
         255.0,
     );
 
-    write_text("Sprzedawca", 10.0, 17.0, 237.0);
-    write_text("Nabywca", 10.0, 112.0, 237.0);
+    write_text("Sprzedawca", 10.0, 15.0, 237.0);
+    write_text("Nabywca", 10.0, 110.0, 237.0);
 
     write_text(&data.seller.name, 9.0, 15.0, 230.0);
     write_text(&format!("NIP: {}", data.seller.nip), 9.0, 15.0, 225.0);
