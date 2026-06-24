@@ -1,0 +1,38 @@
+{
+  "logo_b64": "",
+  "issue_date": "03-06-2024",
+  "invoice_number": "2/06/2024",
+  "seller": {
+    "name": "E-FILE SPÓŁKA Z OGRANICZONĄ ODPOWIEDZIALNOŚCIĄ",
+    "nip": "7811934421",
+    "address_1": "Jeziorańska 12",
+    "address_2": "60-461 Poznań"
+  },
+  "buyer": {
+    "name": "Firma testowa",
+    "nip": "9327836601",
+    "address_1": "Podatkowa 1/1",
+    "address_2": "60-681 Poznań"
+  },
+  "items": [
+    {
+      "index": "1",
+      "name": "Bardzo długa nazwa produktu, która musi zostać zawinięta do nowej linii",
+      "unit": "szt.",
+      "qty": "1",
+      "net_price": "100,00",
+      "vat_rate": "23%",
+      "net_val": "100,00",
+      "vat_val": "23,00",
+      "gross_val": "123,00"
+    }
+  ],
+  "total_gross": "123,00 PLN",
+  "paid": "0,00 PLN",
+  "payment_method": "Przelew",
+  "due_date": "10-06-2024",
+  "bank_name": "Bank DnB NORD Polska",
+  "account_number": "71105011135050708649396056",
+  "issuer": "aaaaa",
+  "footer": "e-file sp. z o.o. sp. k. ul. Jeziorańska 12, (60-461) Poznań NIP: 7811934421"
+}
