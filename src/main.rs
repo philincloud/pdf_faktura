@@ -1,14 +1,12 @@
 use printpdf::*;
 use serde::Deserialize;
-use std::{
-    env,
-    fs::File,
-    io::{BufReader, BufWriter},
-};
+use std::io::{BufWriter, Cursor, Read, Write};
+use std::net::TcpListener;
+use std::thread;
+use std::fs::File;
 
 #[derive(Deserialize)]
 struct Invoice {
-    // logo_b64: Option<String>,  // disabled for now to make it compile
     issue_date: String,
     invoice_number: String,
     seller: Contractor,
@@ -64,29 +62,11 @@ fn wrap_text(text: &str, max_chars: usize) -> Vec<String> {
     lines
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        eprintln!("Usage: {} <input_json> <output_pdf>", args[0]);
-        std::process::exit(1);
-    }
-
-    let input_path = &args[1];
-    let output_path = &args[2];
-
-    let file = File::open(input_path).expect("Failed to open input JSON");
-    let reader = BufReader::new(file);
-    let data: Invoice = serde_json::from_reader(reader).expect("Failed to parse JSON");
-
+fn create_pdf(data: Invoice) -> Result<Vec<u8>, printpdf::Error> {
     let (doc, page1, layer1) = PdfDocument::new("Faktura", Mm(210.0), Mm(297.0), "Layer 1");
     let current_layer = doc.get_page(page1).get_layer(layer1);
 
-    let font = doc
-        .add_external_font(
-            File::open("assets/Roboto-Regular.ttf")
-                .expect("Put Roboto-Regular.ttf in assets/ folder"),
-        )
-        .expect("Failed to load font");
+    let font = doc.add_external_font(File::open("assets/Roboto-Regular.ttf").unwrap()).unwrap();
 
     let write_text = |text: &str, size: f32, x: f32, y: f32| {
         current_layer.use_text(text, size, Mm(x), Mm(y), &font);
@@ -94,12 +74,7 @@ fn main() {
 
     write_text("Data wystawienia:", 10.0, 130.0, 280.0);
     write_text(&data.issue_date, 10.0, 170.0, 280.0);
-    write_text(
-        &format!("FAKTURA FV {}", data.invoice_number),
-        14.0,
-        85.0,
-        255.0,
-    );
+    write_text(&format!("FAKTURA FV {}", data.invoice_number), 14.0, 85.0, 255.0);
 
     write_text("Sprzedawca", 10.0, 15.0, 237.0);
     write_text("Nabywca", 10.0, 110.0, 237.0);
@@ -117,14 +92,14 @@ fn main() {
     let mut y = 180.0f32;
 
     write_text("Lp.", 8.0, 15.0, y);
-    write_text("Nazwa towaru lub usługi", 8.0, 25.0, y);
+    write_text("Nazwa towaru lub uslugi", 8.0, 25.0, y);
     write_text("J.m.", 8.0, 85.0, y);
-    write_text("Ilość", 8.0, 95.0, y);
+    write_text("Ilosc", 8.0, 95.0, y);
     write_text("Cena netto", 8.0, 110.0, y);
     write_text("VAT", 8.0, 130.0, y);
-    write_text("Wartość netto", 8.0, 145.0, y);
-    write_text("Wartość VAT", 8.0, 165.0, y);
-    write_text("Wartość brutto", 8.0, 180.0, y);
+    write_text("Wartosc netto", 8.0, 145.0, y);
+    write_text("Wartosc VAT", 8.0, 165.0, y);
+    write_text("Wartosc brutto", 8.0, 180.0, y);
     y -= 7.0;
 
     for item in &data.items {
@@ -155,32 +130,51 @@ fn main() {
     write_text(&data.total_gross, 10.0, 45.0, y);
 
     y -= 10.0;
-    write_text("Do zapłaty", 10.0, 15.0, y);
+    write_text("Do zaplaty", 10.0, 15.0, y);
     write_text(&data.total_gross, 10.0, 45.0, y);
 
     y -= 5.0;
-    write_text("Zapłacono:", 10.0, 15.0, y);
+    write_text("Zaplacono:", 10.0, 15.0, y);
     write_text(&data.paid, 10.0, 45.0, y);
 
-    write_text("Forma płatności:", 9.0, 15.0, 80.0);
+    write_text("Forma platnosci:", 9.0, 15.0, 80.0);
     write_text(&data.payment_method, 9.0, 45.0, 80.0);
-    write_text("Termin płatności:", 9.0, 15.0, 75.0);
+    write_text("Termin platnosci:", 9.0, 15.0, 75.0);
     write_text(&data.due_date, 9.0, 45.0, 75.0);
     write_text("Bank:", 9.0, 15.0, 70.0);
     write_text(&data.bank_name, 9.0, 45.0, 70.0);
-    write_text("Numer konta:", 9.0, 15.0, 65.0);
+    write_text("Numer konto:", 9.0, 15.0, 65.0);
     write_text(&data.account_number, 9.0, 45.0, 65.0);
 
     write_text(&data.issuer, 10.0, 30.0, 40.0);
-    write_text("Osoba upoważniona do wystawienia", 8.0, 15.0, 35.0);
-    write_text("Osoba upoważniona do odbioru", 8.0, 120.0, 35.0);
+    write_text("Osoba upowazniona do wystawienia", 8.0, 15.0, 35.0);
+    write_text("Osoba upowazniona do odbioru", 8.0, 120.0, 35.0);
 
     write_text(&data.footer, 6.0, 15.0, 15.0);
 
-    doc.save(&mut BufWriter::new(
-        File::create(output_path).expect("Failed to create PDF"),
-    ))
-    .expect("Failed to save PDF");
+    let mut buf = Cursor::new(Vec::new());
+    doc.save(&mut BufWriter::new(&mut buf))?;
+    Ok(buf.into_inner())
+}
 
-    println!("PDF generated successfully: {}", output_path);
+fn main() {
+    let listener = TcpListener::bind("0.0.0.0:8080").unwrap();
+
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                thread::spawn(move || {
+                    let mut buffer = Vec::new();
+                    if stream.read_to_end(&mut buffer).is_ok() {
+                        if let Ok(data) = serde_json::from_slice::<Invoice>(&buffer) {
+                            if let Ok(pdf_bytes) = create_pdf(data) {
+                                let _ = stream.write_all(&pdf_bytes);
+                            }
+                        }
+                    }
+                });
+            }
+            Err(_) => {}
+        }
+    }
 }
